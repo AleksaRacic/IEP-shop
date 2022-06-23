@@ -17,4 +17,5 @@ if (__name__ == '__main__'):
     database.init_app(application)
     if (not database_exists(Config.SQLALCHEMY_DATABASE_URI)):
         create_database(Config.SQLALCHEMY_DATABASE_URI)
+        #TODO dodati admina i role, radio je u nekom od videa
     manager.run()

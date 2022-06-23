@@ -1,22 +1,19 @@
 import json
 import re
-from email.utils import parseaddr
 from sqlalchemy import and_;
 from utils import roleCheck
 
 from flask import Blueprint
 from flask import request, Response, jsonify
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, create_refresh_token, get_jwt, \
+from flask_jwt_extended import create_access_token, jwt_required, create_refresh_token, get_jwt, \
     get_jwt_identity
 
-from Auth.app import app
 from models import User, database, UserRole
 
 auth_view = Blueprint('auth_view', __name__)
-jwt = JWTManager(app)
 
 
-@app.route("/register", methods=["POST"])
+@auth_view.route("/register", methods=["POST"])
 def register():
     email = request.json.get("email", "")
     password = request.json.get("password", "")
@@ -31,49 +28,53 @@ def register():
     isCustomerEmpty = isCustomer == None
 
     if forenameEmpty:
-        return Response(json.dumps({
+        return Response(json.dumps(
             {'message': 'Field forename is missing.'}
-        }), status=400)
+        ), status=400)
 
     if surnameEmpty:
-        return Response(json.dumps({
+        return Response(json.dumps(
             {'message': 'Field surname is missing.'}
-        }), status=400)
+        ), status=400)
 
     if emailEmpty:
-        return Response(json.dumps({
+        return Response(json.dumps(
             {'message': 'Field email is missing.'}
-        }), status=400)
+        ), status=400)
 
     if passwordEmpty:
         return Response(json.dumps({
-            {'message': 'Field forename is missing.'}
+            'message': 'Field password is missing.'
         }), status=400)
 
     if isCustomerEmpty:
         return Response(json.dumps({
-            {'message': 'Field isCustomer is missing.'}
+            'message': 'Field isCustomer is missing.'
         }), status=400)
 
-    result = parseaddr(email)
-    if (len(result[1]) == 0):
+    email_re = re.compile('([A-Za-z0-9]+[.-?])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+')
+    res_email = re.fullmatch(email_re, email)
+    if not res_email:
         return Response(json.dumps({
-            {'message': 'Invalid email.'}
+            'message': 'Invalid email.'
         }), status=400)
 
-    if not re.fullmatch(r'[A-Z]{8,}', password) or not re.fullmatch(r'[a-z]', password) or not re.fullmatch(r'[0-9]',
-                                                                                                            password):
+    match_re = re.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$")
+    res = re.search(match_re, password)
+
+
+    if not res:
         return Response(json.dumps({
-            {'message': 'Invalid password.'}
+            'message': 'Invalid password.'
         }), status=400)
 
     testUser = User.query.filter(User.email == email).all()
     if len(testUser) != 0:
         return Response(json.dumps({
-            {'message': 'Email already exists.'}
+            'message': 'Email already exists.'
         }), status=400)
 
-    user = User(email=email, password=password, forename=forename, surname=surname)
+    user = User(email=email, password=password, forename=forename, surname=surname, isCustomer=isCustomer)
     database.session.add(user)
     database.session.commit()
 
@@ -84,7 +85,7 @@ def register():
     return Response(status=200)
 
 
-@app.route("/login", methods=["POST"])
+@auth_view.route("/login", methods=["POST"])
 def login():
     email = request.json.get("email", "")
     password = request.json.get("password", "")
@@ -94,25 +95,26 @@ def login():
 
     if emailEmpty:
         return Response(json.dumps({
-            {'message': 'Field email is missing.'}
+            'message': 'Field email is missing.'
         }), status=400)
 
     if passwordEmpty:
         return Response(json.dumps({
-            {'message': 'Field forename is missing.'}
+            'message': 'Field password is missing.'
         }), status=400)
 
-    result = parseaddr(email)
-    if (len(result[1]) == 0):
+    email_re = re.compile('([A-Za-z0-9]+[.-?])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+')
+    res_email = re.fullmatch(email_re, email)
+    if not res_email:
         return Response(json.dumps({
-            {'message': 'Invalid email.'}
+            'message': 'Invalid email.'
         }), status=400)
 
     user = User.query.filter(and_(User.email == email, User.password == password)).first()
 
     if (not user):
         return Response(json.dumps({
-            {'message': 'Invalid credentials.'}
+            'message': 'Invalid credentials.'
         }), status=400)
 
     additionalClaims = {
@@ -127,19 +129,19 @@ def login():
     refreshToken = create_refresh_token(identity=user.email, additional_claims=additionalClaims)
 
     return Response(json.dumps({
-        'accessToken':accessToken,
-        'refreshToken':refreshToken
+        'accessToken': accessToken,
+        'refreshToken': refreshToken
     }), status=200)
 
 
-@app.route("/check", methods=["POST"])
+@auth_view.route("/check", methods=["POST"])
 @jwt_required()
 def check():
     return "Token is valid!"
 
 
-@app.route("/refresh", methods=["POST"])
-@jwt_required(refresh=True) #moguce da ce trebati custom wrapper jer treba u specificnom formatu da se vraca response
+@auth_view.route("/refresh", methods=["POST"])
+@jwt_required(refresh=True)  # moguce da ce trebati custom wrapper jer treba u specificnom formatu da se vraca response
 def refresh():
     identity = get_jwt_identity()
     refreshClaims = get_jwt()
@@ -155,32 +157,31 @@ def refresh():
     return Response(create_access_token(identity=identity, additional_claims=additionalClaims), status=200)
 
 
-@app.route("/", methods=["GET"])
-def index():
-    return "Hello world!"
-
-@app.route ( "/threads", methods = ["POST"] )
-@roleCheck ( role = "admin" )
+@auth_view.route("/delete", methods=["POST"])
+@roleCheck(role="Admin")
 def delete():
     email = request.json.get("email", "")
     emailEmpty = len(email) == 0
 
     if emailEmpty:
         return Response(json.dumps({
-            {'message': 'Field email is missing.'}
+            'message': 'Field email is missing.'
         }), status=400)
 
-    result = parseaddr(email)
-    if (len(result[1]) == 0):
+    email_re = re.compile('([A-Za-z0-9]+[.-?])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+')
+    res_email = re.fullmatch(email_re, email)
+    if not res_email:
         return Response(json.dumps({
-            {'message': 'Invalid email.'}
+            'message': 'Invalid email.'
         }), status=400)
 
     user = User.query.filter(User.email == email).first()
-    if (not user):
+    if not user:
         return Response(json.dumps({
-            {'message': 'Unknown User.'}
+            'message': 'Unknown User.'
         }), status=400)
 
-
+    database.session.delete(user)
+    database.session.commit()
+    return Response(status=200)
 

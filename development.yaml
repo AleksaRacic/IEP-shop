@@ -11,3 +11,13 @@ services:
     image: adminer
     ports:
       - 8080:8080
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+  prodavnicaDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    ports:
+      - 3308:3306

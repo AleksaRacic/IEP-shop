@@ -1,0 +1,4 @@
+Flask==1.1.2
+flask_jwt_extended==4.1.0
+cryptography==3.4.7
+redis==3.5.3

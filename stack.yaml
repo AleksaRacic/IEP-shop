@@ -1,0 +1,102 @@
+version: '3'
+
+services:
+  authDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+    - authdbdata:/var/lib/mysql
+    networks:
+      - authnet
+  authDBMigration:
+    image: authdbmigrate
+    environment:
+      - DATABASE_URL=authDB
+    networks:
+      - authnet
+  prodavnicaDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - prodavnicadbdata:/var/lib/mysql
+    networks:
+      - prodavnicanet
+      - adminnet
+      - deamonnet
+  prodavnicaDBMigration:
+    image: prodavnicadbmigrate
+    environment:
+      - DATABASE_URL=prodavnicaDB
+    networks:
+      - prodavnicanet
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    networks:
+      - redisnet
+      - warehousenet
+  auth:
+    image: auth
+    environment:
+      - DATABASE_URL=authDB
+    ports:
+      - 5000:5000
+    networks:
+      - authnet
+  deamon:
+    image: deamon
+    environment:
+      - DATABASE_URL=prodavnicaDB
+      - REDIS_HOST=redis
+    networks:
+      - redisnet
+      - deamonnet
+  customer:
+    image: customer
+    environment:
+      - DATABASE_URL=prodavnicaDB
+    ports:
+      - 5002:5002
+    networks:
+      - prodavnicanet
+  warehouse:
+    image: warehouse
+    environment:
+      - REDIS_HOST=redis
+    ports:
+      - 5001:5001
+    networks:
+      - warehousenet
+  admin:
+    image: adminprod
+    environment:
+      - DATABASE_URL=prodavnicaDB
+    ports:
+      - 5003:5003
+    networks:
+      - adminnet
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
+    networks:
+      - authnet
+      - prodavnicanet
+
+
+
+
+volumes:
+  authdbdata:
+  prodavnicadbdata:
+
+networks:
+  authnet:
+  prodavnicanet:
+  redisnet:
+  adminnet:
+  warehousenet:
+  deamonnet:

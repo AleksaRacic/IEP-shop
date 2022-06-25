@@ -1,6 +1,5 @@
 import json
 import csv
-from time import sleep
 
 from redis import Redis
 from utils import roleCheck

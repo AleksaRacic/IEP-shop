@@ -1,8 +1,7 @@
-import json
 from functools import wraps
-from flask_jwt_extended import verify_jwt_in_request, get_jwt;
-from flask import Response
-
+from flask_jwt_extended import verify_jwt_in_request, get_jwt
+from flask import Response, request
+import json
 
 def roleCheck(role):
     def innerRole(function):

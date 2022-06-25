@@ -15,16 +15,16 @@ application.config.from_object(Config)
 if __name__ == '__main__':
 
     database.init_app(application)
-    with application.app_context() as context:
-        with Redis(host=Config.REDIS_HOST) as redis:
-            while True:
-                bytesList = redis.lrange(Config.REDIS_THREADS_LIST, 0, 0)
-                if len(bytesList) != 0:
-                    bytes = redis.lpop(Config.REDIS_THREADS_LIST)
+    while True:
+        with application.app_context() as context:
+            with Redis(host=Config.REDIS_HOST) as redis:
+
+                bytes = redis.lpop(Config.REDIS_THREADS_LIST) #mozda da stalno popuje, brze ce biti
+                if bytes:
                     product_json = json.loads(bytes.decode("utf-8"))
                     product = Product.query.filter(Product.name == product_json['ime_proizvoda']).first()
-
                     if not product:
+                        print('ime', product_json['ime_proizvoda'])
                         product = Product(
                             name=product_json['ime_proizvoda'],
                             price=product_json['cena'],
@@ -32,6 +32,7 @@ if __name__ == '__main__':
                         )
                         database.session.add(product)
                         database.session.commit()
+                        print('kolicina', product.quantity)
                         categories = product_json['kategorije']
                         for category in categories:
                             db_category = Category.query.filter(Category.name == category).first()
@@ -41,9 +42,11 @@ if __name__ == '__main__':
                                 database.session.commit()
                             productCategory = ProductCategory(productId=product.id, categoryId=db_category.id)
                             database.session.add(productCategory)
-                            database.session.commit()
+                        database.session.commit()
 
                     else:
+                        print('ime', product_json['ime_proizvoda'])
+                        print('tmp0',product.quantity)
                         category_list = product.categories
 
                         category_list = product.categories
@@ -54,46 +57,64 @@ if __name__ == '__main__':
                             if db_category.name not in categories:
                                 flag = False
                                 break
+
                         if flag:
-                            new_quantity = product.quantity + product_json['kolicina']
-                            new_price = (product.quantity * product.price + product_json['kolicina'] * product_json['cena'])/(new_quantity)
-                            product.quantity = new_quantity
+                            old_quantity = product.quantity
+
+                            print('oq', old_quantity)
+                            print('kolicina', product_json['kolicina'])
+
+                            new_quantity = old_quantity + product_json['kolicina']
+                            new_price = (product.quantity * product.price + product_json['kolicina'] * product_json['cena'])/( new_quantity )
+
+                            print('nq', new_quantity)
+                            print('np', new_price)
+
                             product.price = new_price
-                            database.session.commit()
+                            if old_quantity == 0:
+                                pending_orders = Order.query.filter(Order.status == 'PENDING').order_by(Order.timestamp).all()
 
-                    #proera narudzbi
+                                break_ = False
 
-                    pending_orders = Order.query.filter(Order.status == 'PENDING').order_by(Order.timestamp).all()
+                                for order in pending_orders:
+                                    products = order.products
+                                    products = order.products
 
-                    for order in pending_orders:
-                        products = order.products
-                        products = order.products
+                                    for order_product in products:
+                                        if order_product.productId == product.id:
+                                            need = order_product.requested - order_product.received
+                                            if need == 0:
+                                                continue
+                                            print('need', need)
+                                            print('received', order_product.received)
+                                            print('nq2', new_quantity)
+                                            order_product.received = order_product.received + min(need, new_quantity)
+                                            new_quantity = max(new_quantity - need, 0)
+                                            print('nq3', new_quantity)
 
-                        for product in products:
-                            diff = product.requested - product.received
-                            if diff > 0:
-                                warehouse_product = Product.query.get(product.productId)
+                                            if new_quantity == 0:
+                                                break_ = True
+                                                break
+                                    if break_ :
+                                        break
 
-                                if warehouse_product.quantity >= diff:
-                                    warehouse_product.quantity = warehouse_product.quantity - diff # ne skine quantity
-                                    product.received += diff
-                                    database.session.commit()
-                                else:
-                                    product.received += warehouse_product.quantity
-                                    warehouse_product.quantity = 0
-                                    database.session.commit()
+                                product.quantity = new_quantity
+                                database.session.commit()
 
-                        flag = True
+                                flag = True
 
-                        for product in products:
-                            diff = product.requested - product.received
-                            if diff > 0:
-                                flag = False
-                                break
-                        if flag:
-                            order.status = "COMPLETE"
-                            database.session.commit()
+                                for product in products:
+                                    diff = product.requested - product.received
+                                    if diff > 0:
+                                        flag = False
+                                        break
+                                if flag:
+                                    order.status = "COMPLETE"
 
+                                database.session.commit()
+                            else:
+                                product.quantity = new_quantity
+                                database.session.commit()
                 else:
-                    print("sleeping")
-                    sleep(5)
+                    pass
+                    #sleep(5)

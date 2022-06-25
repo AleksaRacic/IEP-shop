@@ -77,8 +77,11 @@ def register():
     user = User(email=email, password=password, forename=forename, surname=surname, isCustomer=isCustomer)
     database.session.add(user)
     database.session.commit()
+    if isCustomer:
+        userRole = UserRole(userId=user.id, roleId=2)
+    else:
+        userRole = UserRole(userId=user.id, roleId=3)
 
-    userRole = UserRole(userId=user.id, roleId=2)
     database.session.add(userRole)
     database.session.commit()
 
@@ -133,13 +136,6 @@ def login():
         'refreshToken': refreshToken
     }), status=200)
 
-
-@auth_view.route("/check", methods=["POST"])
-@jwt_required()
-def check():
-    return "Token is valid!"
-
-
 @auth_view.route("/refresh", methods=["POST"])
 @jwt_required(refresh=True)  # moguce da ce trebati custom wrapper jer treba u specificnom formatu da se vraca response
 def refresh():
@@ -154,7 +150,7 @@ def refresh():
         "roles": refreshClaims["roles"]
     }
 
-    return Response(create_access_token(identity=identity, additional_claims=additionalClaims), status=200)
+    return jsonify(accessToken=create_access_token(identity=identity, additional_claims=additionalClaims)), 200
 
 
 @auth_view.route("/delete", methods=["POST"])
@@ -178,7 +174,7 @@ def delete():
     user = User.query.filter(User.email == email).first()
     if not user:
         return Response(json.dumps({
-            'message': 'Unknown User.'
+            'message': 'Unknown user.'
         }), status=400)
 
     database.session.delete(user)

@@ -31,6 +31,7 @@ class Product(database.Model):
     quantity = database.Column(database.Integer, nullable=False)
     price = database.Column(database.Float, nullable=False)
     categories = database.relationship("Category", secondary=ProductCategory.__table__, back_populates="products")
+    sales = database.relationship("ProductOrder")
 
 
 class Category(database.Model):

@@ -1,20 +1,21 @@
 import datetime
 import json
-import re
+from time import sleep
+
 from sqlalchemy import and_
 
 from flask import Blueprint
-from flask import request, Response, jsonify
-from flask_jwt_extended import create_access_token, jwt_required, create_refresh_token, get_jwt, \
-    get_jwt_identity
+from flask import request, Response
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import *
+from utils import roleCheck
+import sys
 
 customer_view = Blueprint('customer_view', __name__)
 
 
-# TODO dodaj jwt
 @customer_view.route("/search", methods=["GET"])
-@jwt_required()
+@roleCheck('Customer')
 def search():
     name = request.args.get('name')
     category = request.args.get('category')
@@ -64,13 +65,13 @@ def search():
 
 
 @customer_view.route("/order", methods=["POST"])
-@jwt_required()
+@roleCheck('Customer')
 def order():
     identity = get_jwt_identity()
     req = request.json.get('requests', None)
     if not req:
         return Response(json.dumps({
-            'message': 'Field request is missing.'
+            'message': 'Field requests is missing.'
         }), status=400)
 
     count = 0
@@ -94,33 +95,33 @@ def order():
             id = int(id)
         except Exception:
             return Response(json.dumps({
-                'message': f'Incorrect product id for request number {count}.'
+                'message': f'Invalid product id for request number {count}.'
             }), status=400)
         if id < 0:
             return Response(json.dumps({
-                'message': f'Incorrect product id for request number{count}.'
+                'message': f'Invalid product id for request number {count}.'
             }), status=400)
 
         try:
             quantity = int(quantity)
         except Exception:
             return Response(json.dumps({
-                'message': f'Incorrect product quantity for request number {count}.'
+                'message': f'Invalid product quantity for request number {count}.'
             }), status=400)
         if quantity <= 0:
             return Response(json.dumps({
-                'message': f'Incorrect product quantity for request number{count}.'
+                'message': f'Invalid product quantity for request number {count}.'
             }), status=400)
 
         product = Product.query.get(id)
 
         if not product:
             return Response(json.dumps({
-                'message': f'Incorrect product quantity for request number{count}.'
+                'message': f'Invalid product for request number {count}.'
             }), status=400)
 
         wanted_products.append([product, quantity])
-
+        count += 1
     order = Order(timestamp=datetime.datetime.now(), price = 0.0, status = "open", email=identity)
     database.session.add(order)
 
@@ -129,16 +130,24 @@ def order():
     for wanted_product in wanted_products:
         product = wanted_product[0]
         quantity = wanted_product[1]
+        price_p = product.price
+        tmp = product.quantity
+        print('tmp', tmp, file=sys.stdout)
         if product.quantity >= quantity:
             received = quantity
+            print('tmp1', quantity, file=sys.stdout)
             product.quantity = product.quantity - quantity
             database.session.commit()
+            tmp = product.quantity
+            print('tmp2', tmp, file=sys.stdout)
         else:
             received = product.quantity
             product.quantity = 0
             database.session.commit()
+            tmp = product.quantity
+            print('tmp3', tmp, file=sys.stdout)
             completed = False
-        price += quantity * product.price
+        price += quantity * price_p
 
         product_order = ProductOrder(
             productId=product.id,
@@ -160,7 +169,7 @@ def order():
     }), status=200)
 
 @customer_view.route("/status", methods=["GET"])
-@jwt_required()
+@roleCheck('Customer')
 def satus():
     identity = get_jwt_identity()
     orders = Order.query.filter(Order.email == identity)

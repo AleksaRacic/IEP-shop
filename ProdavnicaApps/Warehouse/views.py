@@ -1,24 +1,26 @@
 import json
 import csv
+from time import sleep
+
 from redis import Redis
+from utils import roleCheck
 
 from flask import Blueprint
-from flask import request, Response, jsonify
-from flask_jwt_extended import create_access_token, jwt_required, create_refresh_token, get_jwt, \
-    get_jwt_identity
+from flask import request, Response
 
 from config import Config
 warehouse_view = Blueprint('warehouse_view', __name__)
 
 
 @warehouse_view.route("/update", methods=["POST"])
+@roleCheck('Worker')
 def register():
     #TODO uvesti proveru da mora biti magacioner
     file = request.files.get('file', None)
 
     if not file:
         return Response(json.dumps({
-            'message': 'Field file missing.'
+            'message': 'Field file is missing.'
         }), status=400)
 
     csv_string = file.read().decode('utf-8')
@@ -66,7 +68,6 @@ def register():
     with Redis(host=Config.REDIS_HOST) as redis:
         for product in products:
             redis.rpush(Config.REDIS_THREADS_LIST, json.dumps(product))
-
     return Response(status=200)
 
 

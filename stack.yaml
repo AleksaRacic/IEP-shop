@@ -62,6 +62,8 @@ services:
       - 5002:5002
     networks:
       - prodavnicanet
+    deploy:
+      replicas: 3
   warehouse:
     image: warehouse
     environment:
@@ -70,6 +72,8 @@ services:
       - 5001:5001
     networks:
       - warehousenet
+    deploy:
+      replicas: 3
   admin:
     image: adminprod
     environment:
@@ -95,8 +99,14 @@ volumes:
 
 networks:
   authnet:
+    driver: overlay
   prodavnicanet:
+    driver: overlay
   redisnet:
+    driver: overlay
   adminnet:
+    driver: overlay
   warehousenet:
+    driver: overlay
   deamonnet:
+    driver: overlay
